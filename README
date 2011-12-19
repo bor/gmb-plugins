@@ -1,0 +1,15 @@
+NAME
+    gmb plugins
+
+DESCRIPTION
+    gmusicbrowser extra plugins
+
+USE
+    You can just copy plugins (plugins/*.pm)
+        to .config/gmusicbrowser/plugins
+    or
+    Create link from plugins directory
+        to .config/gmusicbrowser/plugins
+
+SEE ALSO
+    http://gmusicbrowser.org/
