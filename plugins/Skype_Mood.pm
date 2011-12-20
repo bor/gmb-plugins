@@ -1,4 +1,4 @@
-# Copyright (C) 2011 Sergiy Borodych <Sergiy.Borodych@gmail.com>
+# Copyright (C) 2011 Sergiy Borodych
 #
 # This is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3, as
@@ -24,31 +24,43 @@ use constant { OPT => 'PLUGIN_Skype_Mood_' };
 
 ::SetDefaultOptions( OPT, msg => _ "Listen: %a - %t" );
 
-my $dbus         = Net::DBus->find;
-my $dbus_objects = $dbus->get_service("org.freedesktop.DBus")->get_object("/org/freedesktop/DBus");
-
-# found skype instance
-my $skype_found = grep $_ eq 'com.Skype.API', @{ $dbus_objects->ListNames };
-die "No running DBus API-capable Skype found\n" unless $skype_found;
-
-my $skype = $dbus->get_service('com.Skype.API')->get_object( '/com/Skype', 'com.Skype.API' );
-
 my $handle = {};
 my $old_msg;
+my $skype;
+
+## no critic (Variables::ProhibitPackageVars)
 
 sub Start {
+    my $dbus = Net::DBus->find;
+
+    # found skype instance
+    my $dbus_objects = $dbus->get_service("org.freedesktop.DBus")->get_object("/org/freedesktop/DBus");
+    my $skype_found = grep { $_ eq 'com.Skype.API' } @{ $dbus_objects->ListNames };
+    die "No running DBus API-capable Skype found\n" unless $skype_found;
+
+    $skype = $dbus->get_service('com.Skype.API')->get_object( '/com/Skype', 'com.Skype.API' );
+
     # init dbus session
     my $answer = _to_skype('NAME gmb-plugin-skype-mood');
-    die 'Error communicating with Skype!' if $answer ne 'OK';
+    die "Error communicating with Skype!\n" if $answer ne 'OK';
     $answer = _to_skype('PROTOCOL 7');
-    die 'Skype client too old!' if $answer ne 'PROTOCOL 7';
+    die "Skype client too old!\n" if $answer ne 'PROTOCOL 7';
+
     ::Watch( $handle, PlayingSong => \&song_changed );
     ::Watch( $handle, Playing     => \&song_stop );
+
+    # run at start
+    song_changed() if $::TogPlay;
+
+    return 1;
 }
 
 sub Stop {
     ::UnWatch( $handle, 'PlayingSong' );
     ::UnWatch( $handle, 'Playing' );
+    _to_skype("SET PROFILE MOOD_TEXT $old_msg");
+    undef $skype;
+    return 1;
 }
 
 sub prefbox {
@@ -72,7 +84,7 @@ sub song_changed {
     }
 
     my $msg_string = ::ReplaceFields( $ID, $msg );
-    _to_skype("SET PROFILE MOOD_TEXT $msg_string");
+    return _to_skype("SET PROFILE MOOD_TEXT $msg_string");
 }
 
 sub song_stop {
@@ -80,7 +92,7 @@ sub song_stop {
     my $ID  = $::SongID;
     my $msg = $::Options{ OPT . 'msg' };
     return unless $msg;
-    _to_skype("SET PROFILE MOOD_TEXT $old_msg");
+    return _to_skype("SET PROFILE MOOD_TEXT $old_msg");
 }
 
 sub _to_skype {
