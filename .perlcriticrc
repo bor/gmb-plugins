@@ -1,0 +1,6 @@
+[-Modules::RequireFilenameMatchesPackage]
+
+[RegularExpressions::RequireExtendedFormatting]
+minimum_regex_length_to_complain_about = 32
+
+[-ValuesAndExpressions::ProhibitConstantPragma]
