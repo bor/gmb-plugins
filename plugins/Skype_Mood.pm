@@ -18,7 +18,7 @@ use warnings;
 
 use Net::DBus;
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 
 use constant { OPT => 'PLUGIN_Skype_Mood_' };
 
@@ -76,6 +76,8 @@ sub song_changed {
         # save old mood message
         $old_msg = _to_skype("GET PROFILE MOOD_TEXT") || '';
         $old_msg =~ s/^PROFILE MOOD_TEXT\s?(.*)$/$1/ if $old_msg;
+        # clear old our message
+        $old_msg = '' if $old_msg =~ /^Listen: /;
     }
 
     my $msg_string = ::ReplaceFields( $ID, $msg );
