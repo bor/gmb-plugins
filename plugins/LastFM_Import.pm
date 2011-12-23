@@ -44,8 +44,12 @@ die "Not ready yet!\n";
     user         => '',
 );
 
-#my $self = bless {}, __PACKAGE__;
-my $log_box = Gtk2::ListStore->new('Glib::String');
+my $self = bless {}, __PACKAGE__;
+
+my @jobs;
+my $lastfm_library = {};
+my $lastfm_plays   = 0;
+my $library        = {};
 my $xs;
 
 sub Start {
@@ -84,7 +88,13 @@ sub prefbox {
     $button->signal_connect( clicked => \&run );
 
     $vbox->pack_start( $_, 0, 0, 1 ) for $user, $mode, $rating_loved, $button;
-    $vbox->add( ::LogView($log_box) );
+
+    $self->{log_box} = Gtk2::ListStore->new('Glib::String');
+    $vbox->add( ::LogView( $self->{log_box} ) );
+
+    # TODO
+    #$self->{progress_bar} = Gtk2::ProgressBar->new();
+    #$vbox->add( $self->{progress_bar} );
 
     return $vbox;
 }
@@ -95,17 +105,14 @@ sub run {
 
     # $::Library is a SongArray object (array_ref of all song's ids)
     my $library_raw = $::Library;    ## no critic (Variables::ProhibitPackageVars)
-    my $library;
 
-    my %stats = ( imported_playcount => 0, imported_lastplay => 0, imported_loved => 0, skiped => 0 );
+    my %stats = ( tracks => 0, skiped => 0 );
 
     # convert gmb library
     to_log('Looking up library');
     foreach my $id ( @{$library_raw} ) {
         my ( $artist, $title ) = Songs::Get( $id, qw/ artist title / );
         next unless $artist or $title;
-        #utf8::decode($artist);
-        #utf8::decode($title);
         $artist = lc($artist);
         $title  = lc($title);
         my $out = '';
@@ -131,26 +138,107 @@ sub run {
             }
             $out .= "\n" if $opt{debug} >= 2;
         }
-        $stats{gmb_tracks}++;
+        $stats{tracks}++;
         warn "$msg_prefix $out\n" if $opt{debug} >= 2;
     }
-    to_log("  found $stats{gmb_tracks} tracks ($stats{skiped} skipped as dup)");
+    to_log("  found $stats{tracks} tracks ($stats{skiped} skipped as dup)");
 
     $xs = XML::Simple->new( ForceArray => ['track'] );
-    run_mode_playcounts($library);
-    #run_mode_loved_tracks($library);
+
+    run_mode_playcounts();
+    #run_mode_loved_tracks();
+
+    # wait for all jobs done
+    while (@jobs) {
+        #$_->progress();
+        #$self->{progress}->set_fraction( $self->{count}{loaded} / $self->{count}{all} );
+    }
+    delete $self->{count};
+
+    run_import();
 
     return 1;
 }
 
 # playcount & lastplay
 sub run_mode_playcounts {
-    my $library = shift;
-
     if ( $opt{mode} =~ m/p/ ) {
         to_log("Request 'WeeklyChartList'");
-        my $waiting = _lastfm_request( \&_process_charts, { method => 'user.getWeeklyChartList' } );
+        my $http_obj = _lastfm_request( \&_process_charts, { method => 'user.getWeeklyChartList' } );
     }
+    return 1;
+}
+
+# loved tracks (rating)
+sub run_mode_loved_tracks {
+    if ( $opt{mode} =~ m/l/ ) {
+        # TODO
+    }
+    return 1;
+}
+
+# import info to gmb
+sub run_import {
+    my %stats = ( imported_playcount => 0, imported_lastplay => 0, imported_loved => 0 );
+
+    # wait for all jobs done
+    #while ( ) {}
+
+    to_log('Import to gmb');
+    foreach my $artist ( sort keys %{$lastfm_library} ) {
+        warn "$artist\n" if $opt{debug} >= 2;
+        foreach my $title ( keys %{ $lastfm_library->{$artist} } ) {
+            my $e;
+            warn " $title - $lastfm_library->{$artist}{$title}{playcount} <=> $library->{$artist}{$title}{playcount}\n"
+              if $opt{debug} >= 2;
+            # playcount    # wait for all jobs done
+            #while ( ) {}
+
+            if (    $lastfm_library->{$artist}{$title}{playcount}
+                and $lastfm_library->{$artist}{$title}{playcount} > $library->{$artist}{$title}{playcount} )
+            {
+                to_log( "$artist - $title : playcount : "
+                      . "$library->{$artist}{$title}{playcount} -> $lastfm_library->{$artist}{$title}{playcount}" );
+                #$gmb_obj->Set(
+                #    [ $library->{$artist}{$title}{id}, 'playcount', $lastfm_library->{$artist}{$title}{playcount} ]
+                #) or $e++ and warn " error setting 'playcount' for track ID $library->{$artist}{$title}{id}\n";
+                $e ? $stats{errors}++ : $stats{imported_playcount}++;
+            }
+            # lastplay
+            if (    $lastfm_library->{$artist}{$title}{lastplay}
+                and $lastfm_library->{$artist}{$title}{lastplay} > $library->{$artist}{$title}{lastplay} )
+            {
+                to_log( "$artist - $title : lastplay : "
+                      . "$library->{$artist}{$title}{lastplay} -> $lastfm_library->{$artist}{$title}{lastplay}" );
+                #$gmb_obj->Set(
+                #    [ $library->{$artist}{$title}{id}, 'lastplay', $lastfm_library->{$artist}{$title}{lastplay} ] )
+                #  or $e++ and warn " error setting 'lastplay' for track ID $library->{$artist}{$title}{id}\n";
+                $e ? $stats{errors}++ : $stats{imported_lastplay}++;
+            }
+            # loved
+            if (    $lastfm_library->{$artist}{$title}{rating}
+                and $lastfm_library->{$artist}{$title}{rating} > $library->{$artist}{$title}{rating} )
+            {    # wait for all jobs done
+                    #while ( ) {}
+
+                to_log("$artist - $title : loved : rating -> $lastfm_library->{$artist}{$title}{rating}");
+                #$gmb_obj->Set(
+                #    [ $library->{$artist}{$title}{id}, 'rating', $lastfm_library->{$artist}{$title}{rating} ] )
+                #  or $e++ and warn " error setting 'rating' for track ID $library->{$artist}{$title}{id}\n";
+                $e ? $stats{errors}++ : $stats{imported_loved}++;
+            }
+        }
+    }
+
+    to_log( 'Imported : '
+          . "playcount - $stats{imported_playcount}, lastplay - $stats{imported_lastplay}, loved - $stats{imported_loved}. "
+          . ( $stats{errors} ? $stats{errors} : 'No' )
+          . " errors detected." );
+
+    undef $lastfm_library;
+    undef $lastfm_plays;
+    undef $library;
+
     return 1;
 }
 
@@ -162,11 +250,12 @@ sub option {
 # sent message to log_box
 sub to_log {
     my $msg = shift;
-    $log_box->set( $log_box->append(), 0, $msg );
+    $self->{log_box}->set( $self->{log_box}->append(), 0, $msg );
     #warn "$msg_prefix $msg\n" if $::debug;
-    if ( my $iter = $log_box->iter_nth_child( undef, 50 ) ) {
-        $log_box->remove($iter);
+    if ( my $iter = $self->{log_box}->iter_nth_child( undef, 50 ) ) {
+        $self->{log_box}->remove($iter);
     }
+
     return 1;
 }
 
@@ -199,6 +288,8 @@ sub _init_opt {
 }
 
 # lastfm request
+# params: $callback, $additional_params
+# return: Simple_http object
 sub _lastfm_request {
     my ( $cb, $params ) = @_;
 
@@ -215,9 +306,7 @@ sub _lastfm_request {
         $cb->( $data, @_ );
     };
 
-    my $waiting = Simple_http::get_with_cb( cb => $cb_wrap, url => $url );
-    #warn Data::Dumper::Dumper($waiting)."\n" if $opt{debug} >= 2;
-    return $waiting;
+    return Simple_http::get_with_cb( cb => $cb_wrap, url => $url );
 }
 
 # get weekly track chart list
@@ -238,7 +327,7 @@ sub _lastfm_get_weeklytrackchart {
             $cb->( $data, @_ );
         };
 
-        _lastfm_request( $cb_wrap, { method => 'user.getWeeklyTrackChart', %{$params} } );
+        my $http_obj = _lastfm_request( $cb_wrap, { method => 'user.getWeeklyTrackChart', %{$params} } );
     }
     return 1;
 }
@@ -253,16 +342,12 @@ sub _process_charts {
       if $last_week_from < $last_week_to;
     to_log( "  found " . scalar( @{ $charts->{weeklychartlist}{chart} } ) . " pages" );
 
-    my $lastfm_library = {};
-    my $lastfm_plays   = 0;
-
     # get weekly track charts
     to_log("LastFM request 'WeeklyTrackChart' pages");
     my $out = '';
     foreach my $date ( @{ $charts->{weeklychartlist}{chart} } ) {
         $out .= "$date->{from}-$date->{to}.." if $opt{debug};
-        my $waiting =
-          _lastfm_get_weeklytrackchart( \&_process_playcounts, { from => $date->{from}, to => $date->{to} } );
+        _lastfm_get_weeklytrackchart( \&_process_playcounts, { from => $date->{from}, to => $date->{to} } );
     }
     warn "$msg_prefix $out\n" if $opt{debug};
     to_log("  total $lastfm_plays plays");
@@ -275,13 +360,7 @@ sub _process_charts {
 }
 
 sub _process_playcounts {
-    my $data = shift;
-
-    # FIXME pass those vars here, how ?
-    my $date           = {};
-    my $library        = {};
-    my $lastfm_library = {};
-    my $lastfm_plays   = 0;
+    my ( $data, $params ) = @_;
 
     foreach my $title ( keys %{ $data->{weeklytrackchart}{track} } ) {
         my $artist = $data->{weeklytrackchart}{track}{$title}{artist}{name}
@@ -292,9 +371,9 @@ sub _process_playcounts {
         warn "$artist - $title - $playcount\n" if $opt{debug} >= 2;
         if ( $library->{$artist}{$title} and $library->{$artist}{$title}{id} ) {
             $lastfm_library->{$artist}{$title}{playcount} += $playcount;
-            $lastfm_library->{$artist}{$title}{lastplay} = $date->{from}
+            $lastfm_library->{$artist}{$title}{lastplay} = $params->{from}
               if ( not $lastfm_library->{$artist}{$title}{lastplay}
-                or $lastfm_library->{$artist}{$title}{lastplay} < $date->{from} );
+                or $lastfm_library->{$artist}{$title}{lastplay} < $params->{from} );
         }
         $lastfm_plays += $playcount;
     }
