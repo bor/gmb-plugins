@@ -39,11 +39,11 @@ my $widget = {
 };
 
 sub Start {
-    Layout::RegisterWidget( PluginCue => $widget );
+    Layout::RegisterWidget( Plugin_CUE => $widget );
 }
 
 sub Stop {
-    Layout::RegisterWidget( PluginCue => undef );
+    Layout::RegisterWidget( Plugin_CUE => undef );
 }
 
 sub prefbox {
@@ -62,13 +62,9 @@ sub new {
     my $n = 0;
     for (qw/track title performer index/) {
         $treeview->append_column(
-            Gtk2::TreeViewColumn->new_with_attributes(
-                $_, Gtk2::CellRendererText->new, 'text', $n++, 'weight', 4
-            )
-        );
+            Gtk2::TreeViewColumn->new_with_attributes( $_, Gtk2::CellRendererText->new, 'text', $n++, 'weight', 4 ) );
     }
-    $treeview->signal_connect( row_activated => sub { $self->SkipTo( $_[1] ) }
-    );
+    $treeview->signal_connect( row_activated => sub { $self->SkipTo( $_[1] ) } );
 
     my $sw = Gtk2::ScrolledWindow->new( undef, undef );
     $sw->set_shadow_type('etched-in');
@@ -87,8 +83,8 @@ sub SkipTo {
     my $iter  = $store->get_iter($treepath);
     my $track = $store->get_value( $iter, 0 );
     my $sec   = $self->{tracks}[$track]{index} / 75;
-    if ( defined $::SongID && $::SongID == $self->{ID} ) { ::SkipTo($sec) }
-    else { ::Stop(); ::Select( song => $self->{ID} ); ::Play($sec) }
+    if   ( defined $::SongID && $::SongID == $self->{ID} ) { ::SkipTo($sec) }
+    else                                                   { ::Stop(); ::Select( song => $self->{ID} ); ::Play($sec) }
 }
 
 sub TimeChanged {
@@ -167,15 +163,10 @@ sub SongChanged {
     for my $track ( 1 .. $#tracks ) {
         my $h = $tracks[$track];
         next unless $h;
-        my $f =
-          ( Songs::Get( $ID, 'length' ) < 600 ) ? '%01d:%02d' : '%02d:%02d';
+        my $f = ( Songs::Get( $ID, 'length' ) < 600 ) ? '%01d:%02d' : '%02d:%02d';
         my $index = $h->{index} / 75;
         $index = sprintf $f, $index / 60, $index % 60;
-        $store->set(
-            $store->append, 0, $track,          1,
-            $h->{title},    2, $h->{performer}, 3,
-            $index,         4, PANGO_WEIGHT_NORMAL
-        );
+        $store->set( $store->append, 0, $track, 1, $h->{title}, 2, $h->{performer}, 3, $index, 4, PANGO_WEIGHT_NORMAL );
     }
 }
 
