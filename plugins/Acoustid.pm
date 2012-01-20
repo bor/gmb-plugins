@@ -8,7 +8,6 @@
 name	Acoustid
 title	Acoustid plugin
 desc	Retrieves metadata for unknown audio files
-req     perl(Audio::Acoustid::Util)
 =cut
 
 package GMB::Plugin::Acoustid;
@@ -69,11 +68,8 @@ sub option {
 sub get_info {
     my $path = shift;
     my $info = {};
-    my $util = Audio::Acoustid::Util->new( filename => $path );
-    $util->musicdns_lookup() or die $util->error;
-    foreach (qw( artist title album )) {
-        $info->{$_} = $util->$_;
-    }
+    #foreach (qw( artist title album )) {
+    #}
     return $info;
 }
 
