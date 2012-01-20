@@ -12,9 +12,9 @@ USE
         to .config/gmusicbrowser/plugins
 
 STATUS
+    Acoustid        - in progress
     CUE             - ready to use
     LastFM_Import   - in progress
-    OFA             - in progress
     Skype_Mood      - ready to use
 
 SEE ALSO

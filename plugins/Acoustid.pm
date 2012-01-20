@@ -4,25 +4,24 @@
 # it under the terms of the GNU General Public License version 3, as
 # published by the Free Software Foundation
 
-=gmbplugin OFA
-name	OFA
-title	OFA plugin
+=gmbplugin Acoustid
+name	Acoustid
+title	Acoustid plugin
 desc	Retrieves metadata for unknown audio files
-req     perl(Audio::Ofa::Util)
+req     perl(Audio::Acoustid::Util)
 =cut
 
-package GMB::Plugin::OFA;
+package GMB::Plugin::Acoustid;
 
 use strict;
 use warnings;
 
-#use Audio::Ofa::Util;
 use File::Spec ();
 use Glib qw( TRUE FALSE );
 
 our $VERSION = 0.1;
 
-my $opt_prefix = 'PLUGIN_OFA_';
+my $opt_prefix = 'PLUGIN_Acoustid_';
 
 require $::HTTP_module;    ## no critic (Variables::ProhibitPackageVars)
 
@@ -37,20 +36,20 @@ my $song_menu_entry = {
 
 my $widget = {
     class        => __PACKAGE__,
-    tabtitle     => _ 'OFA',
+    tabtitle     => _ 'Acoustid',
     group        => 'Play',
     autoadd_type => 'context page',
 };
 
 sub Start {
     update_menu(1);
-    #Layout::RegisterWidget( Plugin_OFA => $widget );
+    #Layout::RegisterWidget( Plugin_Acoustid => $widget );
     return 1;
 }
 
 sub Stop {
     update_menu(0);
-    #Layout::RegisterWidget( Plugin_OFA => undef );
+    #Layout::RegisterWidget( Plugin_Acoustid => undef );
     return 1;
 }
 
@@ -70,14 +69,11 @@ sub option {
 sub get_info {
     my $path = shift;
     my $info = {};
-    my $util = Audio::Ofa::Util->new( filename => $path );
+    my $util = Audio::Acoustid::Util->new( filename => $path );
     $util->musicdns_lookup() or die $util->error;
-    warn Data::Dumper::Dumper($util);
     foreach (qw( artist title album )) {
         $info->{$_} = $util->$_;
     }
-    require Data::Dumper;
-    warn Data::Dumper::Dumper($info);
     return $info;
 }
 
@@ -95,7 +91,7 @@ sub show_info {
 
     my $info = get_info($song_path);
 
-    my $dialog = Gtk2::Dialog->new( _ 'Song Info provided by OFA', undef, [] );
+    my $dialog = Gtk2::Dialog->new( _ 'Song Info provided by Acoustid', undef, [] );
     $dialog->set_border_width(4);
     my $table = Gtk2::Table->new( 3, 2 );
 
@@ -114,7 +110,7 @@ sub show_info {
     $button->signal_connect( clicked => sub { save_to_file( $song_id, $info ) } );
 
     $dialog->vbox->pack_start( $_, FALSE, FALSE, 2 ) foreach $table, $button;
-    ::SetWSize( $dialog, 'SongInfo_by_OFA' );
+    ::SetWSize( $dialog, 'SongInfo_by_Acoustid' );
     $dialog->show_all();
 
     return $dialog;
@@ -139,17 +135,17 @@ __END__
 
 =head1 NAME
 
-OFA plugin
+Acoustid plugin
 
 =head1 DESCRIPTION
 
 Retrieves metadata for unknown audio files.
+Use L<http://acoustid.org/> service.
 
 =head1 SEE ALSO
 
-L<https://en.wikipedia.org/wiki/Acoustic_fingerprint>,
-L<https://metacpan.org/module/Audio::Ofa>,
-L<https://metacpan.org/module/Audio::Ofa::Util>
+L<http://acoustid.org/>,
+L<https://en.wikipedia.org/wiki/Acoustic_fingerprint>
 
 =head1 AUTHOR
 
